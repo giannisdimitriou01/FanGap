@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     )
 
     database_url: str
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
     opencritic_rapidapi_key: str = ""
     igdb_client_id: str = ""
     igdb_client_secret: str = ""
