@@ -8,9 +8,24 @@ app = FastAPI(
     title="FanGap",
     description=(
         "Comparing critic scores versus player scores, "
-        "and tracking how that gap changes over time."
+        "and tracking how that gap changes over time. "
+        "Scores are stored as append-only snapshots (0–100) from Steam, OpenCritic, and IGDB."
     ),
     version="0.1.0",
+    openapi_tags=[
+        {
+            "name": "games",
+            "description": "Catalog of games, including search, filters, and CRUD.",
+        },
+        {
+            "name": "ratings",
+            "description": "Latest scores and full snapshot history per game.",
+        },
+        {
+            "name": "divergence",
+            "description": "Absolute gap between latest critic and fan averages.",
+        },
+    ],
 )
 
 app.add_middleware(
@@ -24,11 +39,11 @@ app.add_middleware(
 app.include_router(api_router)
 
 
-@app.get("/")
+@app.get("/", summary="Service identity")
 def root():
     return {"name": "FanGap", "status": "ok"}
 
 
-@app.get("/health")
+@app.get("/health", summary="Health check")
 def health():
     return {"status": "ok"}

@@ -1,15 +1,36 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { fetchGames } from '../api/games.js'
+import AppHeader from '../components/AppHeader.jsx'
+import FilterBar from '../components/FilterBar.jsx'
 import GameCard from '../components/GameCard.jsx'
 
 const PAGE_SIZE = 20
 
+function useDebouncedValue(value, delayMs) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}
+
 export default function GameList() {
-  const [page, setPage] = useState(1)
+  const [params, setParams] = useSearchParams()
+  const q = params.get('q') ?? ''
+  const genre = params.get('genre') ?? ''
+  const platform = params.get('platform') ?? ''
+  const sort = params.get('sort') === 'divergence' ? 'divergence' : 'title'
+  const page = Math.max(1, Number(params.get('page') || '1') || 1)
+  const debouncedQ = useDebouncedValue(q, 300)
+
   const [reloadToken, setReloadToken] = useState(0)
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
+  const [genres, setGenres] = useState([])
+  const [platforms, setPlatforms] = useState([])
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState(null)
 
@@ -23,10 +44,16 @@ export default function GameList() {
         const data = await fetchGames({
           page,
           pageSize: PAGE_SIZE,
+          q: debouncedQ,
+          genre,
+          platform,
+          sort,
           signal: controller.signal,
         })
         setItems(data.items)
         setTotal(data.total)
+        setGenres(data.genres ?? [])
+        setPlatforms(data.platforms ?? [])
         setStatus('ok')
       } catch (err) {
         if (err.name === 'AbortError') {
@@ -39,23 +66,45 @@ export default function GameList() {
 
     loadGames()
     return () => controller.abort()
-  }, [page, reloadToken])
+  }, [page, debouncedQ, genre, platform, sort, reloadToken])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
+  function updateFilters(patch) {
+    const next = new URLSearchParams(params)
+    Object.entries(patch).forEach(([key, value]) => {
+      if (value) {
+        next.set(key, value)
+      } else {
+        next.delete(key)
+      }
+    })
+    next.delete('page')
+    setParams(next)
+  }
+
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
-      <div className="mx-auto max-w-6xl space-y-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <AppHeader />
+      <main className="mx-auto max-w-6xl space-y-8 px-4 py-10">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">FanGap</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Games</h1>
           <p className="text-slate-400">
             Critic scores vs player scores — and how that gap changes over time.
           </p>
         </header>
 
-        {status === 'loading' ? (
-          <p className="text-slate-400">Loading games…</p>
-        ) : null}
+        <FilterBar
+          q={q}
+          genre={genre}
+          platform={platform}
+          sort={sort}
+          genres={genres}
+          platforms={platforms}
+          onChange={updateFilters}
+        />
+
+        {status === 'loading' ? <p className="text-slate-400">Loading games…</p> : null}
 
         {status === 'error' ? (
           <div className="space-y-3 rounded-lg border border-red-900/60 bg-red-950/40 p-4">
@@ -71,7 +120,7 @@ export default function GameList() {
         ) : null}
 
         {status === 'ok' && items.length === 0 ? (
-          <p className="text-slate-400">No games yet. Seed the database and refresh.</p>
+          <p className="text-slate-400">No games match those filters.</p>
         ) : null}
 
         {status === 'ok' && items.length > 0 ? (
@@ -87,7 +136,11 @@ export default function GameList() {
                   type="button"
                   disabled={page <= 1}
                   className="rounded-md border border-slate-700 px-3 py-1.5 disabled:opacity-40"
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  onClick={() => {
+                    const next = new URLSearchParams(params)
+                    next.set('page', String(page - 1))
+                    setParams(next)
+                  }}
                 >
                   Previous
                 </button>
@@ -98,7 +151,11 @@ export default function GameList() {
                   type="button"
                   disabled={page >= totalPages}
                   className="rounded-md border border-slate-700 px-3 py-1.5 disabled:opacity-40"
-                  onClick={() => setPage((current) => current + 1)}
+                  onClick={() => {
+                    const next = new URLSearchParams(params)
+                    next.set('page', String(page + 1))
+                    setParams(next)
+                  }}
                 >
                   Next
                 </button>
@@ -106,7 +163,7 @@ export default function GameList() {
             ) : null}
           </>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   )
 }

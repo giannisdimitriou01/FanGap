@@ -15,5 +15,29 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://fangap:fangap@db:5432/fangap
+      CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
+      OPENCRITIC_RAPIDAPI_KEY: ${OPENCRITIC_RAPIDAPI_KEY:-}
+      IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
+      IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - app
+
 volumes:
   fangap_pgdata:

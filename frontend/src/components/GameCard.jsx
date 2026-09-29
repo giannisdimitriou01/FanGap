@@ -46,6 +46,14 @@ export default function GameCard({ game }) {
             ))}
           </div>
         ) : null}
+        {game.divergence != null ? (
+          <p className="text-sm text-amber-300">
+            Gap {Number(game.divergence).toFixed(1)}
+            {game.critic_score != null && game.fan_score != null
+              ? ` · critics ${Number(game.critic_score).toFixed(0)} / players ${Number(game.fan_score).toFixed(0)}`
+              : null}
+          </p>
+        ) : null}
       </div>
     </Link>
   )
