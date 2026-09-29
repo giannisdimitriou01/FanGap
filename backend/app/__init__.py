@@ -1,0 +1,1 @@
+"""FanGap backend application package."""
