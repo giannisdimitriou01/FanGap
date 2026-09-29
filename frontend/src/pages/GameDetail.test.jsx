@@ -9,27 +9,35 @@ beforeEach(() => {
     'fetch',
     vi.fn(async (url) => {
       const path = String(url)
-      if (path.endsWith('/ratings/history')) {
+      if (path.includes('/ratings/history')) {
         return {
           ok: true,
           status: 200,
           json: async () => ({ items: [] }),
         }
       }
-      if (path.includes('/games/1')) {
+      if (path.includes('/games/by-igdb/113112')) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
-            id: 1,
+            igdb_id: 113112,
             title: 'Hades',
             release_date: '2020-09-17',
             genres: ['Action'],
             platforms: ['PC'],
             cover_url: null,
-            critic_score: 94,
-            fan_score: 98,
-            divergence: 4,
+            featured_game_id: null,
+            live: {
+              igdb_id: 113112,
+              title: 'Hades',
+              critic_score: 94,
+              fan_score: 98,
+              divergence: 4,
+              critic_samples: 1,
+              fan_samples: 1,
+              scores: [],
+            },
           }),
         }
       }
@@ -42,11 +50,11 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('renders a game loaded from GET /games/:id', async () => {
+it('renders live scores from catalog detail', async () => {
   render(
-    <MemoryRouter initialEntries={['/games/1']}>
+    <MemoryRouter initialEntries={['/games/igdb/113112']}>
       <Routes>
-        <Route path="/games/:gameId" element={<GameDetail />} />
+        <Route path="/games/igdb/:igdbId" element={<GameDetail />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -56,9 +64,9 @@ it('renders a game loaded from GET /games/:id', async () => {
 
 it('shows a not-found state for a missing game', async () => {
   render(
-    <MemoryRouter initialEntries={['/games/999']}>
+    <MemoryRouter initialEntries={['/games/igdb/999']}>
       <Routes>
-        <Route path="/games/:gameId" element={<GameDetail />} />
+        <Route path="/games/igdb/:igdbId" element={<GameDetail />} />
       </Routes>
     </MemoryRouter>,
   )

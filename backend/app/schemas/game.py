@@ -42,6 +42,7 @@ class GameRead(BaseModel):
     critic_score: float | None = None
     fan_score: float | None = None
     divergence: float | None = None
+    featured_rank: int | None = None
 
 
 class GameListResponse(BaseModel):

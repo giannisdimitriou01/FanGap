@@ -12,10 +12,13 @@ export default function AppHeader() {
         </NavLink>
         <nav className="flex gap-5">
           <NavLink to="/" className={linkClass} end>
-            Games
+            Search
           </NavLink>
           <NavLink to="/leaderboard" className={linkClass}>
             Leaderboard
+          </NavLink>
+          <NavLink to="/featured" className={linkClass}>
+            Featured
           </NavLink>
         </nav>
       </div>

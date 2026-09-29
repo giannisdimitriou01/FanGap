@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
-import { fetchGames } from '../api/games.js'
+import { searchCatalog } from '../api/catalog.js'
 import AppHeader from '../components/AppHeader.jsx'
-import FilterBar from '../components/FilterBar.jsx'
 import GameCard from '../components/GameCard.jsx'
 
 const PAGE_SIZE = 20
@@ -20,17 +19,12 @@ function useDebouncedValue(value, delayMs) {
 export default function GameList() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
-  const genre = params.get('genre') ?? ''
-  const platform = params.get('platform') ?? ''
-  const sort = params.get('sort') === 'divergence' ? 'divergence' : 'title'
   const page = Math.max(1, Number(params.get('page') || '1') || 1)
   const debouncedQ = useDebouncedValue(q, 300)
 
   const [reloadToken, setReloadToken] = useState(0)
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
-  const [genres, setGenres] = useState([])
-  const [platforms, setPlatforms] = useState([])
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState(null)
 
@@ -41,19 +35,14 @@ export default function GameList() {
       setStatus('loading')
       setError(null)
       try {
-        const data = await fetchGames({
+        const data = await searchCatalog({
           page,
           pageSize: PAGE_SIZE,
           q: debouncedQ,
-          genre,
-          platform,
-          sort,
           signal: controller.signal,
         })
         setItems(data.items)
         setTotal(data.total)
-        setGenres(data.genres ?? [])
-        setPlatforms(data.platforms ?? [])
         setStatus('ok')
       } catch (err) {
         if (err.name === 'AbortError') {
@@ -66,19 +55,17 @@ export default function GameList() {
 
     loadGames()
     return () => controller.abort()
-  }, [page, debouncedQ, genre, platform, sort, reloadToken])
+  }, [page, debouncedQ, reloadToken])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  function updateFilters(patch) {
+  function updateSearch(value) {
     const next = new URLSearchParams(params)
-    Object.entries(patch).forEach(([key, value]) => {
-      if (value) {
-        next.set(key, value)
-      } else {
-        next.delete(key)
-      }
-    })
+    if (value) {
+      next.set('q', value)
+    } else {
+      next.delete('q')
+    }
     next.delete('page')
     setParams(next)
   }
@@ -88,21 +75,23 @@ export default function GameList() {
       <AppHeader />
       <main className="mx-auto max-w-6xl space-y-8 px-4 py-10">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Games</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Search games</h1>
           <p className="text-slate-400">
-            Critic scores vs player scores — and how that gap changes over time.
+            Browse IGDB. Live critic vs player scores on each game. Monthly history only for the
+            Featured Top 10.
           </p>
         </header>
 
-        <FilterBar
-          q={q}
-          genre={genre}
-          platform={platform}
-          sort={sort}
-          genres={genres}
-          platforms={platforms}
-          onChange={updateFilters}
-        />
+        <label className="block max-w-xl text-sm">
+          <span className="mb-1 block text-slate-400">Search</span>
+          <input
+            type="search"
+            value={q}
+            onChange={(event) => updateSearch(event.target.value)}
+            placeholder="Game title"
+            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+          />
+        </label>
 
         {status === 'loading' ? <p className="text-slate-400">Loading games…</p> : null}
 
@@ -120,14 +109,14 @@ export default function GameList() {
         ) : null}
 
         {status === 'ok' && items.length === 0 ? (
-          <p className="text-slate-400">No games match those filters.</p>
+          <p className="text-slate-400">No games match that search.</p>
         ) : null}
 
         {status === 'ok' && items.length > 0 ? (
           <>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((game) => (
-                <GameCard key={game.id} game={game} />
+                <GameCard key={game.igdb_id} game={game} />
               ))}
             </div>
             {totalPages > 1 ? (

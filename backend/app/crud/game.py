@@ -21,6 +21,31 @@ def available_platforms(db: Session) -> list[str]:
     return [row for row in rows if row]
 
 
+def list_featured_games(db: Session) -> list[GameRead]:
+    from app.crud.divergence import divergence_subquery
+
+    div = divergence_subquery().subquery()
+    rows = db.execute(
+        select(Game, div.c.critic_score, div.c.fan_score, div.c.divergence)
+        .outerjoin(div, div.c.game_id == Game.id)
+        .where(Game.featured_rank.is_not(None))
+        .order_by(Game.featured_rank.asc())
+    ).all()
+    items: list[GameRead] = []
+    for game, critic_score, fan_score, divergence in rows:
+        payload = GameRead.model_validate(game)
+        items.append(
+            payload.model_copy(
+                update={
+                    "critic_score": float(critic_score) if critic_score is not None else None,
+                    "fan_score": float(fan_score) if fan_score is not None else None,
+                    "divergence": float(divergence) if divergence is not None else None,
+                }
+            )
+        )
+    return items
+
+
 def list_games(
     db: Session,
     page: int,

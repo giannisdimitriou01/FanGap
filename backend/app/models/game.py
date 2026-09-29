@@ -35,6 +35,7 @@ class Game(Base):
     steam_app_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
     opencritic_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
     igdb_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
+    featured_rank: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

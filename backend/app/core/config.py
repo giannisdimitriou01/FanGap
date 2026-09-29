@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     opencritic_rapidapi_key: str = ""
     igdb_client_id: str = ""
     igdb_client_secret: str = ""
+    live_cache_ttl_seconds: int = 3600
+    leaderboard_pool_size: int = 150
+    leaderboard_cache_limit: int = 50
+    featured_count: int = 10
+    enable_game_crud: bool = False
 
 
 settings = Settings()

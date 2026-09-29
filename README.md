@@ -2,7 +2,9 @@
 
 **Comparing what critics say versus what players actually feel — and tracking how that gap changes over time.**
 
-FanGap aggregates video game ratings from Steam, OpenCritic, and IGDB onto a shared 0–100 scale. It stores every fetch as a new snapshot (never an overwrite), so you can chart critic vs player scores after launch and rank the games where those audiences disagree most.
+FanGap aggregates video game ratings from Steam, OpenCritic, and IGDB onto a shared 0–100 scale.
+
+**Hybrid model:** search and browse **many games** via IGDB with **live** critic vs player scores. Only the **Featured Top 10** in Postgres keep **monthly snapshot history** and trend charts; the set rotates when live divergence ranking changes.
 
 ![Game list with search and filters](docs/screenshots/games.png)
 
@@ -14,11 +16,11 @@ FanGap aggregates video game ratings from Steam, OpenCritic, and IGDB onto a sha
 
 ## Features
 
-- **Critic vs. fan divergence** — latest critic average vs latest fan average per game, ranked by absolute gap
-- **Historical rating tracking** — `rating_snapshots` appends a row per source/audience/run
-- **Multi-source aggregation** — Steam store reviews, OpenCritic Top Critic Score, IGDB critic + user ratings
-- **Search and filtering** — title search, genre, platform, sort by title or divergence; filter state lives in the URL
-- **Scheduled refresh** — GitHub Actions cron writes new snapshots against the deployed database
+- **IGDB catalog search** — browse many titles; live multi-source scores on each detail page
+- **Live divergence leaderboard** — cached ranking (~50) rebuilt from an IGDB candidate pool
+- **Featured Top 10** — Postgres snapshots + monthly chart; games dropped from the top 10 lose stored history
+- **Multi-source aggregation** — Steam, OpenCritic, IGDB normalized to 0–100
+- **Scheduled jobs** — weekly live leaderboard rebuild; monthly featured sync + snapshot refresh
 
 ---
 
@@ -33,40 +35,30 @@ FanGap aggregates video game ratings from Steam, OpenCritic, and IGDB onto a sha
 
 ---
 
-## Architecture
+## Architecture (hybrid)
 
 ```
-Steam / OpenCritic / IGDB
-        │
-        ▼
-   adapters/            one module per source, shared RawRating interface
-        │
-        ▼
-   normalizer.py        maps each source onto 0–100
-        │
-        ▼
-   refresh.py           appends rating_snapshots (never updates an old row)
-        │
-        ▼
-   PostgreSQL           games + rating_snapshots
-        │
-        ▼
-   FastAPI              /games, history, /games/divergence/top
-        │
-        ▼
-   React                list, FilterBar, ScoreChart, leaderboard
+IGDB catalog search/browse  ──►  live adapters (Steam / OpenCritic / IGDB)  ──►  gap (cached ~1h)
+                                        │
+                                        ▼
+                              leaderboard_cache (top ~50 live gaps)
+                                        │
+                          monthly sync  ▼
+PostgreSQL: Featured Top 10 only  ──►  rating_snapshots (history charts)
 ```
 
-A Monday 06:00 UTC GitHub Actions workflow runs `python -m app.jobs.refresh_ratings`. That job needs `DATABASE_URL` (and optional OpenCritic/IGDB secrets) so it writes into the **deployed** database, not a GitHub runner’s empty disk.
+| Surface | Storage |
+|---------|---------|
+| Search + most game pages | Live APIs only |
+| `/leaderboard/live` | `leaderboard_cache` JSON row |
+| `/featured`, snapshot history | `games` (≤10) + `rating_snapshots` |
 
-### Design decisions
+Jobs:
 
-- **PostgreSQL over SQLite** — free PaaS filesystems are ephemeral. A file database would vanish on every Render deploy. Postgres (local Docker or Neon) is the same engine in both places.
-- **Snapshots over overwrites** — a single `current_score` column cannot answer “how did this look six months after launch?” Each successful adapter fetch inserts a new `rating_snapshots` row with `fetched_at`.
-- **Source + audience** — Steam is fan-only, OpenCritic is critic-only, IGDB returns both. Divergence averages the *latest* snapshot per `(game, source, audience)`, then takes `abs(avg critics − avg fans)`. Games need at least one critic and one fan sample to appear on the leaderboard.
-- **Adapters behind one interface** — `fetch_ratings(GameRef) -> list[RawRating]`. Adding GOG later should not touch FastAPI routes or the chart.
-- **Recharts** — small dependency, SVG line chart, enough for two series (critics amber, players blue) without a heavy dashboard kit.
-- **Filter state in the URL** — `?q=&genre=&platform=&sort=` is shareable and survives refresh. Search input is debounced 300ms so every keystroke does not hit Postgres.
+- `python -m app.jobs.rebuild_live_leaderboard` — weekly (GitHub Actions)
+- `python -m app.jobs.sync_featured_top10` — monthly: rotate top 10, delete dropped games, refresh snapshots
+
+IGDB credentials (`IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET`) are **required** for catalog search.
 
 ---
 
@@ -190,8 +182,8 @@ VITE_API_URL=http://127.0.0.1:8000
 ```bash
 cd backend
 source venv/bin/activate
-python -m app.jobs.refresh_ratings          # all games
-python -m app.services.refresh 1            # one game id
+python -m app.jobs.rebuild_live_leaderboard
+python -m app.jobs.sync_featured_top10
 ```
 
 Without OpenCritic/IGDB keys those adapters skip; Steam still writes a fan snapshot when `steam_app_id` is set.
@@ -204,15 +196,13 @@ Interactive docs: http://localhost:8000/docs
 
 | Endpoint | Description |
 |---|---|
-| `GET /games` | Paginated list. Query: `q`, `genre`, `platform`, `sort=title\|divergence`, `page`, `page_size` |
-| `GET /games/{id}` | Detail plus latest critic/fan averages and divergence |
-| `POST /games` | Create |
-| `PATCH /games/{id}` | Partial update |
-| `DELETE /games/{id}` | Delete (cascades snapshots) |
-| `GET /games/{id}/ratings` | Latest snapshot per source + audience |
-| `GET /games/{id}/ratings/history` | Full history, oldest first (chart input) |
-| `GET /games/{id}/divergence` | Gap for one game |
-| `GET /games/divergence/top` | Leaderboard |
+| `GET /catalog/games` | IGDB search (`q`, `page`, `page_size`) |
+| `GET /catalog/games/{igdb_id}/live` | Live multi-source scores + gap (cached) |
+| `GET /games/by-igdb/{igdb_id}` | Metadata + live scores + featured link |
+| `GET /leaderboard/live` | Cached live divergence top ~50 |
+| `GET /games` | Featured Top 10 only (snapshot-backed) |
+| `GET /games/{id}/ratings/history` | Featured history for charts |
+| `GET /games/divergence/top` | Featured snapshot leaderboard (max 10) |
 
 ---
 
@@ -227,21 +217,12 @@ GitHub Actions (`.github/workflows/ci.yml`) runs both suites on every push: back
 
 ---
 
-## Scheduled refresh (GitHub Actions)
+## Scheduled jobs (GitHub Actions)
 
-`.github/workflows/refresh.yml` runs weekly (`0 6 * * 1`) and on `workflow_dispatch`.
+- **Weekly** — `.github/workflows/rebuild-leaderboard.yml` runs `rebuild_live_leaderboard` (cached live top ~50).
+- **Monthly** — `.github/workflows/refresh.yml` runs `rebuild_live_leaderboard` then `sync_featured_top10` (rotate Featured Top 10, refresh snapshots).
 
-**Why a GitHub cron instead of a process on the API box?** Render’s free web service sleeps. A runner that boots, writes snapshots, and exits does not need a always-on worker.
-
-Repo secrets (Settings → Secrets and variables → Actions):
-
-| Secret | Purpose |
-|---|---|
-| `DATABASE_URL` | Neon (or other hosted) connection string the job should write to |
-| `OPENCRITIC_RAPIDAPI_KEY` | Optional; skipped if empty |
-| `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` | Optional Twitch credentials for IGDB |
-
-Until those secrets exist, the workflow file is in the repo but cannot reach a hosted database. After deploy, run it once with **Run workflow** and confirm new `rating_snapshots` rows in Neon.
+Repo secrets: `DATABASE_URL`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, optional `OPENCRITIC_RAPIDAPI_KEY`.
 
 ---
 

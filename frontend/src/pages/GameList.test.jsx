@@ -13,22 +13,17 @@ beforeEach(() => {
       json: async () => ({
         items: [
           {
-            id: 1,
+            igdb_id: 113112,
             title: 'Hades',
             release_date: '2020-09-17',
             genres: ['Action'],
             platforms: ['PC'],
             cover_url: null,
-            divergence: 4,
-            critic_score: 94,
-            fan_score: 98,
           },
         ],
         total: 1,
         page: 1,
         page_size: 20,
-        genres: ['Action'],
-        platforms: ['PC'],
       }),
     })),
   )
@@ -38,12 +33,11 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('renders games from the API', async () => {
+it('renders catalog games from IGDB search', async () => {
   render(
     <MemoryRouter>
       <GameList />
     </MemoryRouter>,
   )
   expect(await screen.findByRole('heading', { name: 'Hades' })).toBeInTheDocument()
-  expect(screen.getByText(/Gap 4/)).toBeInTheDocument()
 })

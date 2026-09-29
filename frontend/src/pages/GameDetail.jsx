@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { fetchGame, fetchRatingHistory } from '../api/games.js'
+import { fetchCatalogDetail } from '../api/catalog.js'
+import { fetchRatingHistory } from '../api/featured.js'
 import AppHeader from '../components/AppHeader.jsx'
 import ScoreChart from '../components/ScoreChart.jsx'
 
@@ -25,8 +26,10 @@ function ScoreStat({ label, value, hint }) {
 }
 
 export default function GameDetail() {
-  const { gameId } = useParams()
+  const { gameId, igdbId } = useParams()
+  const catalogId = igdbId ?? gameId
   const [game, setGame] = useState(null)
+  const [live, setLive] = useState(null)
   const [history, setHistory] = useState([])
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState(null)
@@ -39,12 +42,18 @@ export default function GameDetail() {
       setStatus('loading')
       setError(null)
       try {
-        const [detail, historyPayload] = await Promise.all([
-          fetchGame(gameId, { signal: controller.signal }),
-          fetchRatingHistory(gameId, { signal: controller.signal }),
-        ])
+        const detail = await fetchCatalogDetail(catalogId, { signal: controller.signal })
         setGame(detail)
-        setHistory(historyPayload.items ?? [])
+        setLive(detail.live ?? null)
+        const featuredId = detail.featured_game_id ?? detail.live?.featured_game_id
+        if (featuredId) {
+          const historyPayload = await fetchRatingHistory(featuredId, {
+            signal: controller.signal,
+          })
+          setHistory(historyPayload.items ?? [])
+        } else {
+          setHistory([])
+        }
         setStatus('ok')
       } catch (err) {
         if (err.name === 'AbortError') {
@@ -58,14 +67,16 @@ export default function GameDetail() {
 
     loadGame()
     return () => controller.abort()
-  }, [gameId, reloadToken])
+  }, [catalogId, reloadToken])
+
+  const scores = live ?? game?.live ?? game
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <AppHeader />
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
         <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">
-          ← All games
+          ← Search
         </Link>
 
         {status === 'loading' ? <p className="text-slate-400">Loading game…</p> : null}
@@ -100,10 +111,10 @@ export default function GameDetail() {
                     <p className="text-slate-400">{releaseYear(game.release_date)}</p>
                   ) : null}
                 </header>
-                {game.genres.length > 0 ? (
+                {game.genres?.length > 0 ? (
                   <p className="text-slate-300">{game.genres.join(' · ')}</p>
                 ) : null}
-                {game.platforms.length > 0 ? (
+                {game.platforms?.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {game.platforms.map((item) => (
                       <span
@@ -116,20 +127,31 @@ export default function GameDetail() {
                   </div>
                 ) : null}
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <ScoreStat label="Critics" value={game.critic_score} hint="Latest critic average" />
-                  <ScoreStat label="Players" value={game.fan_score} hint="Latest fan average" />
-                  <ScoreStat label="Gap" value={game.divergence} hint="Absolute difference" />
+                  <ScoreStat
+                    label="Critics"
+                    value={scores?.critic_score}
+                    hint="Live average"
+                  />
+                  <ScoreStat label="Players" value={scores?.fan_score} hint="Live average" />
+                  <ScoreStat label="Gap" value={scores?.divergence} hint="Absolute difference" />
                 </div>
               </div>
             </article>
 
-            <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-              <h2 className="text-xl font-semibold">Score trend</h2>
-              <p className="text-sm text-slate-400">
-                Critics in amber, players in blue. The gap between the two lines is FanGap.
+            {game.featured_game_id || live?.featured_game_id ? (
+              <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+                <h2 className="text-xl font-semibold">Monthly history</h2>
+                <p className="text-sm text-slate-400">
+                  This game is in the Featured Top 10. Snapshots refresh monthly.
+                </p>
+                <ScoreChart points={history} />
+              </section>
+            ) : (
+              <p className="text-sm text-slate-500">
+                Score history is only stored for the current Featured Top 10. Live scores above
+                update from Steam, OpenCritic, and IGDB.
               </p>
-              <ScoreChart points={history} />
-            </section>
+            )}
           </>
         ) : null}
       </main>

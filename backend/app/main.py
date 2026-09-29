@@ -7,9 +7,8 @@ from app.core.config import settings
 app = FastAPI(
     title="FanGap",
     description=(
-        "Comparing critic scores versus player scores, "
-        "and tracking how that gap changes over time. "
-        "Scores are stored as append-only snapshots (0–100) from Steam, OpenCritic, and IGDB."
+        "Hybrid FanGap: IGDB catalog with live critic/fan scores, "
+        "plus Featured Top 10 monthly snapshot history in Postgres."
     ),
     version="0.1.0",
     openapi_tags=[

@@ -1,12 +1,12 @@
-name: Refresh ratings
+name: Rebuild live leaderboard
 
 on:
   schedule:
-    - cron: "0 6 1 * *"
+    - cron: "0 6 * * 1"
   workflow_dispatch:
 
 jobs:
-  featured:
+  rebuild:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -23,7 +23,5 @@ jobs:
           python-version: "3.13"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Rebuild live leaderboard
+      - name: Rebuild cached live leaderboard
         run: python -m app.jobs.rebuild_live_leaderboard
-      - name: Sync Featured Top 10 and refresh snapshots
-        run: python -m app.jobs.sync_featured_top10
