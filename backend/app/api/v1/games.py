@@ -1,12 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.crud import game as game_crud
 from app.db.session import get_db
-from app.schemas import GameCreate, GameListResponse, GameRead
+from app.schemas import GameCreate, GameListResponse, GameRead, GameUpdate
 
 router = APIRouter(prefix="/games", tags=["games"])
+
+
+def _game_or_404(db: Session, game_id: int):
+    game = game_crud.get_game(db, game_id)
+    if game is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Game not found.",
+        )
+    return game
 
 
 @router.get("", response_model=GameListResponse)
@@ -34,3 +44,32 @@ def create_game(payload: GameCreate, db: Session = Depends(get_db)) -> GameRead:
             status_code=status.HTTP_409_CONFLICT,
             detail="A game with this external ID already exists.",
         )
+
+
+@router.get("/{game_id}", response_model=GameRead)
+def get_game(game_id: int, db: Session = Depends(get_db)) -> GameRead:
+    return _game_or_404(db, game_id)
+
+
+@router.patch("/{game_id}", response_model=GameRead)
+def update_game(
+    game_id: int,
+    payload: GameUpdate,
+    db: Session = Depends(get_db),
+) -> GameRead:
+    game = _game_or_404(db, game_id)
+    try:
+        return game_crud.update_game(db, game, payload)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A game with this external ID already exists.",
+        )
+
+
+@router.delete("/{game_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_game(game_id: int, db: Session = Depends(get_db)) -> Response:
+    game = _game_or_404(db, game_id)
+    game_crud.delete_game(db, game)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

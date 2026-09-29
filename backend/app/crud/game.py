@@ -2,7 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Game
-from app.schemas import GameCreate
+from app.schemas import GameCreate, GameUpdate
 
 
 def list_games(db: Session, page: int, page_size: int) -> tuple[list[Game], int]:
@@ -23,3 +23,20 @@ def create_game(db: Session, payload: GameCreate) -> Game:
     db.commit()
     db.refresh(game)
     return game
+
+
+def get_game(db: Session, game_id: int) -> Game | None:
+    return db.get(Game, game_id)
+
+
+def update_game(db: Session, game: Game, payload: GameUpdate) -> Game:
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(game, field, value)
+    db.commit()
+    db.refresh(game)
+    return game
+
+
+def delete_game(db: Session, game: Game) -> None:
+    db.delete(game)
+    db.commit()
