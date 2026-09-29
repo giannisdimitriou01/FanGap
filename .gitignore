@@ -21,6 +21,9 @@ dist-ssr/
 .env.*
 !.env.example
 
+# Local Postgres data directory (conda/user-space fallback)
+.pgdata/
+
 # OS / editor
 .DS_Store
 .idea/
