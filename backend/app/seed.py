@@ -14,6 +14,8 @@ SEED_GAMES = [
         "genres": ["Action", "Roguelike"],
         "platforms": ["PC", "Switch", "PS5", "Xbox"],
         "steam_app_id": 1145360,
+        "opencritic_id": 10181,
+        "igdb_id": 113112,
         "cover_url": "https://cdn.cloudflare.steamstatic.com/steam/apps/1145360/header.jpg",
     },
     {

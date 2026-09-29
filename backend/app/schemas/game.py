@@ -14,6 +14,17 @@ class GameCreate(BaseModel):
     igdb_id: int | None = None
 
 
+class GameUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    release_date: date | None = None
+    genres: list[str] | None = None
+    platforms: list[str] | None = None
+    cover_url: str | None = Field(default=None, max_length=512)
+    steam_app_id: int | None = None
+    opencritic_id: int | None = None
+    igdb_id: int | None = None
+
+
 class GameRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

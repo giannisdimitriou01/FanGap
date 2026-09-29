@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 function releaseYear(releaseDate) {
   if (!releaseDate) {
     return null
@@ -9,7 +11,10 @@ export default function GameCard({ game }) {
   const year = releaseYear(game.release_date)
 
   return (
-    <article className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 shadow-sm">
+    <Link
+      to={`/games/${game.id}`}
+      className="block overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80 shadow-sm transition hover:border-slate-600"
+    >
       {game.cover_url ? (
         <img
           src={game.cover_url}
@@ -42,6 +47,6 @@ export default function GameCard({ game }) {
           </div>
         ) : null}
       </div>
-    </article>
+    </Link>
   )
 }
