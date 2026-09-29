@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { fetchGame } from '../api/games.js'
+import { fetchGame, fetchRatingHistory } from '../api/games.js'
+import AppHeader from '../components/AppHeader.jsx'
+import ScoreChart from '../components/ScoreChart.jsx'
 
 function releaseYear(releaseDate) {
   if (!releaseDate) {
@@ -10,9 +12,22 @@ function releaseYear(releaseDate) {
   return releaseDate.slice(0, 4)
 }
 
+function ScoreStat({ label, value, hint }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-2xl font-semibold text-slate-50">
+        {value == null ? '—' : Number(value).toFixed(1)}
+      </p>
+      {hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
+    </div>
+  )
+}
+
 export default function GameDetail() {
   const { gameId } = useParams()
   const [game, setGame] = useState(null)
+  const [history, setHistory] = useState([])
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState(null)
   const [reloadToken, setReloadToken] = useState(0)
@@ -24,8 +39,12 @@ export default function GameDetail() {
       setStatus('loading')
       setError(null)
       try {
-        const data = await fetchGame(gameId, { signal: controller.signal })
-        setGame(data)
+        const [detail, historyPayload] = await Promise.all([
+          fetchGame(gameId, { signal: controller.signal }),
+          fetchRatingHistory(gameId, { signal: controller.signal }),
+        ])
+        setGame(detail)
+        setHistory(historyPayload.items ?? [])
         setStatus('ok')
       } catch (err) {
         if (err.name === 'AbortError') {
@@ -42,15 +61,14 @@ export default function GameDetail() {
   }, [gameId, reloadToken])
 
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
-      <div className="mx-auto max-w-3xl space-y-6">
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <AppHeader />
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
         <Link to="/" className="text-sm text-slate-400 hover:text-slate-200">
           ← All games
         </Link>
 
-        {status === 'loading' ? (
-          <p className="text-slate-400">Loading game…</p>
-        ) : null}
+        {status === 'loading' ? <p className="text-slate-400">Loading game…</p> : null}
 
         {status === 'error' ? (
           <div className="space-y-3 rounded-lg border border-red-900/60 bg-red-950/40 p-4">
@@ -70,54 +88,51 @@ export default function GameDetail() {
         ) : null}
 
         {status === 'ok' && game ? (
-          <article className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80">
-            {game.cover_url ? (
-              <img
-                src={game.cover_url}
-                alt=""
-                className="h-56 w-full object-cover"
-              />
-            ) : null}
-            <div className="space-y-4 p-6">
-              <header>
-                <h1 className="text-3xl font-bold tracking-tight">{game.title}</h1>
-                {releaseYear(game.release_date) ? (
-                  <p className="text-slate-400">{releaseYear(game.release_date)}</p>
+          <>
+            <article className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/80">
+              {game.cover_url ? (
+                <img src={game.cover_url} alt="" className="h-56 w-full object-cover" />
+              ) : null}
+              <div className="space-y-4 p-6">
+                <header>
+                  <h1 className="text-3xl font-bold tracking-tight">{game.title}</h1>
+                  {releaseYear(game.release_date) ? (
+                    <p className="text-slate-400">{releaseYear(game.release_date)}</p>
+                  ) : null}
+                </header>
+                {game.genres.length > 0 ? (
+                  <p className="text-slate-300">{game.genres.join(' · ')}</p>
                 ) : null}
-              </header>
-              {game.genres.length > 0 ? (
-                <p className="text-slate-300">{game.genres.join(' · ')}</p>
-              ) : null}
-              {game.platforms.length > 0 ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {game.platforms.map((platform) => (
-                    <span
-                      key={platform}
-                      className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300"
-                    >
-                      {platform}
-                    </span>
-                  ))}
+                {game.platforms.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {game.platforms.map((item) => (
+                      <span
+                        key={item}
+                        className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <ScoreStat label="Critics" value={game.critic_score} hint="Latest critic average" />
+                  <ScoreStat label="Players" value={game.fan_score} hint="Latest fan average" />
+                  <ScoreStat label="Gap" value={game.divergence} hint="Absolute difference" />
                 </div>
-              ) : null}
-              <dl className="grid gap-2 text-sm text-slate-400 sm:grid-cols-3">
-                <div>
-                  <dt className="uppercase tracking-wide">Steam</dt>
-                  <dd className="text-slate-200">{game.steam_app_id ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt className="uppercase tracking-wide">OpenCritic</dt>
-                  <dd className="text-slate-200">{game.opencritic_id ?? '—'}</dd>
-                </div>
-                <div>
-                  <dt className="uppercase tracking-wide">IGDB</dt>
-                  <dd className="text-slate-200">{game.igdb_id ?? '—'}</dd>
-                </div>
-              </dl>
-            </div>
-          </article>
+              </div>
+            </article>
+
+            <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+              <h2 className="text-xl font-semibold">Score trend</h2>
+              <p className="text-sm text-slate-400">
+                Critics in amber, players in blue. The gap between the two lines is FanGap.
+              </p>
+              <ScoreChart points={history} />
+            </section>
+          </>
         ) : null}
-      </div>
-    </main>
+      </main>
+    </div>
   )
 }

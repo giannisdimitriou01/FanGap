@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.adapters.base import AdapterError, GameRef, RawRating
@@ -77,10 +78,30 @@ def refresh_game_id(game_id: int, db: Session | None = None) -> list[RatingSnaps
             session.close()
 
 
+def refresh_all(db: Session | None = None) -> int:
+    owns_session = db is None
+    session = db or SessionLocal()
+    written = 0
+    try:
+        games = list(session.scalars(select(Game).order_by(Game.title)).all())
+        for game in games:
+            snapshots = refresh_game(session, game)
+            written += len(snapshots)
+            print(f"{game.title}: {len(snapshots)} snapshot(s)")
+        return written
+    finally:
+        if owns_session:
+            session.close()
+
+
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Refresh rating snapshots for a game")
-    parser.add_argument("game_id", type=int)
+    parser = argparse.ArgumentParser(description="Refresh rating snapshots")
+    parser.add_argument("game_id", type=int, nargs="?", help="Refresh one game; omit to refresh all")
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+    if args.game_id is None:
+        written = refresh_all()
+        print(f"wrote {written} snapshot(s) across all games")
+        return
     snapshots = refresh_game_id(args.game_id)
     print(f"wrote {len(snapshots)} snapshot(s) for game {args.game_id}")
     for snapshot in snapshots:
